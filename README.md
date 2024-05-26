@@ -23,7 +23,7 @@ This is a command-line tool written in Rust for displaying a clock or a countdow
 3. Build the project:
     ```sh
     cargo build --release
-    suod cp target/release/rclock /usr/local/bin
+    sudo cp target/release/rclock /usr/local/bin
     ```
 4. The executable will be located in `target/release/`. You can add it to your PATH for easier usage.
 
