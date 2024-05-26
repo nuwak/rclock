@@ -77,6 +77,9 @@ rclock [OPTIONS]
     ```
 6. **Other**
 
+```shell
+rclock -d '0:0:10' -x 'paplay files/notification.wav'
+```
 
 ```shell
 rclock -c 3 -t 'Asia/Manila'
