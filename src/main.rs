@@ -2,6 +2,7 @@ extern crate cfonts;
 extern crate chrono;
 extern crate chrono_tz;
 
+use std::process::Command;
 use std::io::{Read, stdin};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -100,21 +101,49 @@ fn display_time(time: String, color: Colors) {
 }
 
 fn run_timer(duration: ChronoDuration, color: Colors, running: Arc<AtomicBool>, paused: Arc<AtomicBool>, command: Option<String>) {
-    let mut seconds_left = duration.num_seconds();
-    while running.load(Ordering::SeqCst) {
-        if seconds_left <= 0 {
-            break;
-        }
+    // Execute "timew continue" when the timer starts
+    Command::new("timew")
+        .arg("continue")
+        .output()
+        .expect("Failed to execute command");
 
-        let hours = seconds_left / 3600;
-        let minutes = (seconds_left % 3600) / 60;
-        let seconds = seconds_left % 60;
-        let time = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+    let mut seconds_left = duration.num_seconds();
+    let mut was_paused = false;
+    let mut command_executed = false;
+
+    while running.load(Ordering::SeqCst) {
+        let hours = seconds_left.abs() / 3600;
+        let minutes = (seconds_left.abs() % 3600) / 60;
+        let seconds = seconds_left.abs() % 60;
+        let time = if seconds_left < 0 {
+            format!("-{:02}:{:02}:{:02}", hours, minutes, seconds)
+        } else {
+            format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+        };
 
         if paused.load(Ordering::SeqCst) {
             display_time(time, Colors::BlueBright);
+
+            if !was_paused {
+                // Execute "timew stop" when the timer is paused
+                Command::new("timew")
+                    .arg("stop")
+                    .output()
+                    .expect("Failed to execute command");
+
+                was_paused = true;
+            }
+
             sleep(Duration::from_millis(100));
             continue;
+        } else if was_paused {
+            // Execute "timew continue" when resuming from pause
+            Command::new("timew")
+                .arg("continue")
+                .output()
+                .expect("Failed to execute command");
+
+            was_paused = false;
         }
 
         display_time(time, color.clone());
@@ -122,23 +151,31 @@ fn run_timer(duration: ChronoDuration, color: Colors, running: Arc<AtomicBool>, 
         if !paused.load(Ordering::SeqCst) {
             seconds_left -= 1;
         }
-    }
 
-    if let Some(cmd) = command {
-        if running.load(Ordering::SeqCst) {
-            println!("Executing command: {}", cmd);
-            let mut parts = cmd.split_whitespace();
-            if let Some(program) = parts.next() {
-                let args: Vec<&str> = parts.collect();
-                std::process::Command::new(program)
-                    .args(&args)
-                    .spawn()
-                    .expect("Failed to execute command");
+        if seconds_left == 0 && !command_executed {
+            if let Some(cmd) = &command {
+                if running.load(Ordering::SeqCst) {
+                    println!("Executing command: {}", cmd);
+                    let mut parts = cmd.split_whitespace();
+                    if let Some(program) = parts.next() {
+                        let args: Vec<&str> = parts.collect();
+                        Command::new(program)
+                            .args(&args)
+                            .spawn()
+                            .expect("Failed to execute command");
+                    }
+                }
             }
+            command_executed = true;
         }
     }
-}
 
+    // Execute "timew stop" when the timer completes or exits
+    Command::new("timew")
+        .arg("stop")
+        .output()
+        .expect("Failed to execute command");
+}
 fn run_clock(timezone: Tz, color: Colors) {
     loop {
         let now: DateTime<Tz> = timezone.from_utc_datetime(&Utc::now().naive_utc());
@@ -198,7 +235,7 @@ fn run_countdown_to_time(target_time: DateTime<Tz>, color: Colors, command: Opti
         let mut parts = cmd.split_whitespace();
         if let Some(program) = parts.next() {
             let args: Vec<&str> = parts.collect();
-            std::process::Command::new(program)
+            Command::new(program)
                 .args(&args)
                 .spawn()
                 .expect("Failed to execute command");
