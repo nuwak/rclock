@@ -12,6 +12,7 @@ use cfonts::{Align, BgColors, Colors, Env, Fonts, Options, say};
 use chrono::{Datelike, DateTime, Duration as ChronoDuration, NaiveTime, Timelike, TimeZone, Utc};
 use chrono_tz::Tz;
 use clap::Parser;
+use termion::terminal_size;
 use termios::{ECHO, ICANON, TCSANOW, tcsetattr, Termios};
 
 /// CLI tool for displaying a clock or a countdown timer
@@ -113,7 +114,7 @@ fn run_timer(duration: ChronoDuration, color: Colors, running: Arc<AtomicBool>, 
 
         if paused.load(Ordering::SeqCst) {
             display_time(time, Colors::BlueBright);
-            sleep(Duration::from_millis(100));
+            sleep(Duration::from_millis(1000));
             continue;
         }
 
@@ -141,9 +142,14 @@ fn run_timer(duration: ChronoDuration, color: Colors, running: Arc<AtomicBool>, 
 
 fn run_clock(timezone: Tz, color: Colors) {
     loop {
+        let (width, _) = terminal_size().unwrap();
         let now: DateTime<Tz> = timezone.from_utc_datetime(&Utc::now().naive_utc());
         let time = now.format("%H:%M").to_string();
+        let date = now.format("%m.%d %a").to_string();
+        let padding = (width as usize - date.len()) / 2;
+
         display_time(time, color.clone());
+        println!("{:padding$}{}", "", date, padding = padding);
         let seconds_until_next_minute = 60 - now.second();
         sleep(Duration::from_secs(seconds_until_next_minute as u64));
     }
