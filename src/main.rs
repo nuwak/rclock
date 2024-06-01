@@ -3,7 +3,8 @@ extern crate chrono;
 extern crate chrono_tz;
 
 use std::process::Command;
-use std::io::{Read, stdin};
+use std::io;
+use std::io::{Read, stdin, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::sleep;
@@ -44,6 +45,11 @@ struct Cli {
     target_time: Option<String>,
 }
 
+fn clear_terminal() {
+    print!("\x1B[2J\x1B[3J\x1B[H");
+    io::stdout().flush().unwrap();
+}
+
 fn get_color(index: u8) -> Colors {
     match index {
         1 => Colors::Red,
@@ -79,8 +85,7 @@ fn parse_duration(s: &str) -> Result<ChronoDuration, &'static str> {
 }
 
 fn display_time(time: String, color: Colors) {
-    // Clear the terminal
-    print!("{esc}c", esc = 27 as char);
+    clear_terminal();
 
     // Display time using cfonts
     say(Options {
